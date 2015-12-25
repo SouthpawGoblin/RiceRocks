@@ -5,7 +5,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>169053c4-0771-4f67-963f-d4acb8fc260c</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>RiceRocks.py</StartupFile>
+    <StartupFile>main.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -22,10 +22,10 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="CodeSculptor_RiceRocks.py">
+    <Compile Include="rice_rocks.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="RiceRocks.py" />
+    <Compile Include="main.py" />
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
