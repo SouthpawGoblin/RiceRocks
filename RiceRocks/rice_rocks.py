@@ -1,4 +1,3 @@
-# program template for Spaceship
 import pygame
 import math
 import random
@@ -67,7 +66,7 @@ class Ship:
     
     def shoot(self, missile_group, missile_vel_scale, missile_image, missile_info, missile_sound):
         forward_vector = angle_to_vector(self.angle)
-        missile_group.add(Game.Sprite([self.pos[0] + self.radius * forward_vector[0], self.pos[1] + self.radius * forward_vector[1]], 
+        missile_group.add(Sprite([self.pos[0] + self.radius * forward_vector[0], self.pos[1] + self.radius * forward_vector[1]], 
                             [forward_vector[0] * missile_vel_scale + self.vel[0], forward_vector[1] * missile_vel_scale + self.vel[1]], 
                             self.angle, 
                             0, 
@@ -76,26 +75,23 @@ class Ship:
                             missile_sound))
     
     def draw(self, screen):
+        im = pygame.Surface(self.image_size, flags=pygame.SRCALPHA, depth=32)
         if not self.thrust:
-            im = pygame.transform.rotate(self.image, (self.angle / math.pi) * 180)
-            screen.blit(self.image, (self.pos[0] - self.image_center[0], self.pos[1] - self.image_center[1]))
+            im.blit(self.image, (0, 0),)
         else:
-            canvas.draw_image(self.image, 
-                                [self.image_center[0] + self.image_size[0], self.image_center[1]], 
-                                self.image_size, 
-                                self.pos, 
-                                self.image_size, 
-                                self.angle)
+            im.blit(self.image, (0, 0), pygame.Rect(self.image_size[0], 0, self.image_size[0], self.image_size[1]))
+        im = pygame.transform.rotate(im, 360 - (self.angle / math.pi) * 180)
+        screen.blit(im, (self.pos[0] - im.get_size()[0] / 2, self.pos[1] - im.get_size()[1] / 2))
 
-    def update(self):
+    def update(self, acc_scale, vel_scale, width, height):
         dimension = 2
         forward_vector = angle_to_vector(self.angle)
         for i in range(dimension):
             if self.thrust:
-                self.vel[i] += forward_vector[i] * ship_acc_scale
-            self.vel[i] *= ship_vel_scale
+                self.vel[i] += forward_vector[i] * acc_scale
+            self.vel[i] *= vel_scale
             self.pos[i] += self.vel[i]
-            self.pos[i] %= [WIDTH, HEIGHT][i]
+            self.pos[i] %= [width, height][i]
         self.angle += self.angle_vel 
     
 # Sprite class
@@ -113,7 +109,6 @@ class Sprite:
         self.animated = info.get_animated()
         self.age = 0
         if sound:
-            sound.rewind()
             sound.play()
     
     def get_position(self):
@@ -125,24 +120,20 @@ class Sprite:
     def collide(self, other_object):
         return dist(self.pos, other_object.get_position()) <= self.radius + other_object.get_radius()
 
-    def draw(self, canvas):
-        im_center = []
+    def draw(self, screen):
+        im = pygame.Surface(self.image_size, flags=pygame.SRCALPHA, depth=32)
         if self.animated:
-            im_center = [self.image_center[0] + self.age * self.image_size[0], self.image_center[1]]
+            im.blit(self.image, (0, 0), pygame.Rect(self.age * self.image_size[0], 0, self.image_size[0], self.image_size[1]))
         else:
-            im_center = self.image_center                         
-        canvas.draw_image(self.image, 
-                            im_center, 
-                            self.image_size, 
-                            self.pos, 
-                            self.image_size, 
-                            self.angle)
+            im.blit(self.image, (0, 0))
+        im = pygame.transform.rotate(im, self.angle / math.pi * 180)                        
+        screen.blit(im, (self.pos[0] - im.get_size()[0] / 2, self.pos[1] - im.get_size()[1] / 2))
     
-    def update(self):
+    def update(self, width, height):
         dimension = 2
         for i in range(dimension):
             self.pos[i] += self.vel[i]
-            self.pos[i] %= [WIDTH, HEIGHT][i]
+            self.pos[i] %= [width, height][i]
         self.angle += self.angle_vel
         self.age += 1
         return True if self.age >= self.lifespan else False
@@ -152,6 +143,8 @@ class Game:
         self.__max_life = max_life
         self.width = wid
         self.height = ht
+        self.ship_im = init_ship_im
+        self.ship_im_info = init_ship_info
         self.my_ship = Ship([wid / 2, ht / 2], [0, 0], 4.71, init_ship_im, init_ship_info)
         self.rock_group = set([])
         self.missile_group = set([])
@@ -167,21 +160,21 @@ class Game:
         self.ship_vel_scale = 0.99	# ship's friction factor
         self.ship_acc_scale = 0.1	# ship's acceleration scale factor
 
-    def process_sprite_group(sprite_group, screen):
+    def process_sprite_group(self, sprite_group, screen):
         """update and draw a group of sprites"""
         for sprite in set(sprite_group):
-            if sprite.update():
+            if sprite.update(self.width, self.height):
                 sprite_group.discard(sprite)
             else:
                 sprite.draw(screen)
 
-    def group_collide(group, other_object, expl_im, expl_info, expl_sound):
+    def group_collide(self, group, other_object, expl_im, expl_info, expl_sound):
         """judge if a group of sprites has collision with another object"""
         flag = False
         for sprite in set(group):
             if sprite.collide(other_object):
                 group.discard(sprite)
-                explosion_group.add(Sprite(sprite.get_position(), 
+                self.explosion_group.add(Sprite(sprite.get_position(), 
                                            [0, 0], 
                                            0, 
                                            0, 
@@ -191,16 +184,14 @@ class Game:
                 flag = True
         return flag
 
-    def group_group_collide(group1, group2):
+    def group_group_collide(self, group1, group2, expl_im, expl_info, expl_sound):
         """calculate how many collisions does two group of sprites have"""
         count = 0
         for sprite in set(group1):
-            if group_collide(group2, sprite):
+            if self.group_collide(group2, sprite, expl_im, expl_info, expl_sound):
                 count += 1
                 group1.discard(sprite)
         return count
-
-
 
     def rock_spawn(self, asteroid_image, asteroid_info):
         """spawn a rock and adds it to the rock_group"""
@@ -217,53 +208,11 @@ class Game:
                 if not rock.collide(self.my_ship):
                     flag = False
             self.rock_group.add(rock)
-            self.rock_num += 1
-              
-    def draw(canvas):
-        """draw handler"""
-        global time, lives, score, rock_num, game_over
-   
-        # animiate background
-        time += 1
-        wtime = (time / 4) % WIDTH
-        center = debris_info.get_center()
-        size = debris_info.get_size()
-        canvas.draw_image(nebula_image, nebula_info.get_center(), nebula_info.get_size(), [WIDTH / 2, HEIGHT / 2], [WIDTH, HEIGHT])
-        canvas.draw_image(debris_image, center, size, (wtime - WIDTH / 2, HEIGHT / 2), (WIDTH, HEIGHT))
-        canvas.draw_image(debris_image, center, size, (wtime + WIDTH / 2, HEIGHT / 2), (WIDTH, HEIGHT))   
-    
-        # draw ship
-        my_ship.draw(canvas)
-    
-        if game_over:
-            new_game()
-            canvas.draw_image(splash_image, splash_info.get_center(), splash_info.get_size(), [WIDTH / 2, HEIGHT / 2], splash_info.get_size())
-        else:
-            # update ship
-            my_ship.update()
-
-            process_sprite_group(rock_group, canvas)
-            process_sprite_group(missile_group, canvas)
-            process_sprite_group(explosion_group, canvas)
-
-            if group_collide(rock_group, my_ship):
-                rock_num -= 1
-                lives -= 1
-
-            collide_num = group_group_collide(missile_group, rock_group)
-            rock_num -= collide_num
-            score += 10 * collide_num
-
-            if lives < 1:
-                game_over = True
-            
-        # draw text
-        canvas.draw_text("Lives: " + str(lives), [WIDTH - 120, 24], 24, "White")
-        canvas.draw_text("Score: " + str(score), [0, 24], 24, "White")  
+            self.rock_num += 1  
      
     def new_game(self):
         """initialize a new game"""
-        self.my_ship = Ship([WIDTH / 2, HEIGHT / 2], [0, 0], 4.71, ship_image, ship_info)
+        self.my_ship = Ship([self.width / 2, self.height / 2], [0, 0], 4.71, self.ship_im, self.ship_im_info)
         self.rock_group = set([])
         self.missile_group = set([])
         self.explosion_group = set([])
