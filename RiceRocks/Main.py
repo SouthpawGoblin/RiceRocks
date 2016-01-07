@@ -1,4 +1,5 @@
 import pygame
+import pygame._view
 import rice_rocks
 import random
 import math
